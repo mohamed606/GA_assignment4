@@ -12,6 +12,13 @@ class Node:
         self.name = name
         self.error = 0
 
+    def calculate_output(self, list_edges):
+        edges = get_edge_by_from(self.name, list_edges)
+        sum = 0
+        for edge in edges:
+            sum = sum + (edge.weight * edge.value)
+        return sigmoid(sum)
+
     def calculate_input_error(self, list_edges):
         edges = get_edge_by_to(self.name, list_edges)
         error = edges[0].value * (1 - edges[0].value)
@@ -65,6 +72,36 @@ def main():
     intialize_hidden_layer_nodes(hidden_layer, number_of_node_for_each_layer)
     initialize_output_layer_nodes(column_name, number_of_node_for_each_layer, output_layer)
     create_network(hidden_layer, input_layer, list_edges, output_layer)
+
+
+def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges):
+    iterations = 0
+    number_of_iterations = 500
+    mse = 0
+    while True:
+        sum = 0
+        for i in range(0, len(dataset)):
+            row = dataset.iloc[i]
+            counter = 0
+            for i_node in input_layer:
+                edges = get_edge_by_to(i_node.name, list_edges)
+                for edge in edges:
+                    edge.value = row.iloc[counter]
+                counter += 1
+            for h_node in hidden_layer:
+                output = h_node.calculate_output(list_edges)
+                edges = get_edge_by_to(h_node.name, list_edges)
+                for edge in edges:
+                    edge.value = output
+            for o_node in output_layer:
+                output = o_node.calculate_output(list_edges)
+                sum = sum + numpy.power((row.iloc[counter] - output), 2)
+                counter += 1
+        mse = sum / 2
+        iterations += 1
+        if iterations == number_of_iterations:
+            break
+
 
 
 def create_network(hidden_layer, input_layer, list_edges, output_layer):
@@ -140,5 +177,5 @@ def get_edge_by_to(node_name, list_edges):
     return edges
 
 
-for i in range(0, 10):
-    print(random())
+def sigmoid(value):
+    return 1 / (1 + numpy.exp(-value))
