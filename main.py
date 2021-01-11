@@ -24,8 +24,8 @@ class Node:
         error = edges[0].value * (1 - edges[0].value)
         my_sum = 0
         for edge in edges:
-            to_node = edge.to_node
-            my_sum = my_sum + (edge.weight * to_node.error)
+            from_node = edge.from_node
+            my_sum = my_sum + (edge.weight * from_node.error)
         self.error = error * my_sum
 
     def calculate_output_error(self, output, target):
@@ -38,7 +38,7 @@ class Edge:
     weight = 0
     value = 0
 
-    def __init__(self, from_node, to_node, weight):
+    def __init__(self, to_node, from_node, weight):
         self.from_node = from_node
         self.to_node = to_node
         self.weight = weight
@@ -63,7 +63,9 @@ def main():
     for i in range(0, number_of_node_for_each_layer[2]):
         column_name.append("O" + str(i))
     dataset = pandas.read_csv("train.csv", names=column_name)
-    dataset = (dataset - dataset.mean()) / numpy.sqrt(numpy.power(dataset - dataset.mean(), 2) / len(dataset))
+    print(dataset.mean())
+    # dataset = (dataset - dataset.mean()) / numpy.sqrt(numpy.power(dataset - dataset.mean(), 2) / len(dataset))
+    dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
     input_layer = list()
     hidden_layer = list()
     output_layer = list()
@@ -72,12 +74,14 @@ def main():
     intialize_hidden_layer_nodes(hidden_layer, number_of_node_for_each_layer)
     initialize_output_layer_nodes(column_name, number_of_node_for_each_layer, output_layer)
     create_network(hidden_layer, input_layer, list_edges, output_layer)
+    start_training(dataset, input_layer, hidden_layer, output_layer, list_edges)
 
 
 def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges):
     iterations = 0
     number_of_iterations = 500
     mse = 0
+    learning_rate = 0.05
     while True:
         sum = 0
         for i in range(0, len(dataset)):
@@ -98,10 +102,25 @@ def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges)
                 sum = sum + numpy.power((row.iloc[counter] - output), 2)
                 counter += 1
         mse = sum / 2
+        print(f"mean square error {mse}")
         iterations += 1
         if iterations == number_of_iterations:
             break
-
+        for i in range(0, len(dataset)):
+            row = dataset.iloc[i]
+            counter = len(input_layer)
+            for o_node in output_layer:
+                output = o_node.calculate_output(list_edges)
+                o_node.calculate_output_error(output, row.iloc[counter])
+                edges = get_edge_by_from(o_node.name, list_edges)
+                for edge in edges:
+                    edge.weight = edge.weight + (learning_rate * o_node.error * edge.value)
+                counter += 1
+            for h_node in hidden_layer:
+                edges = get_edge_by_from(h_node.name, list_edges)
+                h_node.calculate_input_error(list_edges)
+                for edge in edges:
+                    edge.weight = edge.weight + (learning_rate * h_node.error * edge.value)
 
 
 def create_network(hidden_layer, input_layer, list_edges, output_layer):
@@ -179,3 +198,6 @@ def get_edge_by_to(node_name, list_edges):
 
 def sigmoid(value):
     return 1 / (1 + numpy.exp(-value))
+
+
+main()
