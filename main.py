@@ -60,23 +60,68 @@ class Edge:
 
 
 def main():
-    number_of_node_for_each_layer = convert_txt_to_csv("train.txt", "train.csv")
+    number_of_node_for_each_layer = convert_txt_to_csv_training("train.txt", "train.csv")
     column_name = list()
     for i in range(0, number_of_node_for_each_layer[0]):
         column_name.append("I" + str(i))
     for i in range(0, number_of_node_for_each_layer[2]):
         column_name.append("O" + str(i))
     dataset = pandas.read_csv("train.csv", names=column_name)
-    dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
+    dataset[dataset.columns[number_of_node_for_each_layer[0]:]] = (dataset[dataset.columns[
+                                                                           number_of_node_for_each_layer[0]:]] -
+                                                                   dataset[dataset.columns[
+                                                                           number_of_node_for_each_layer[
+                                                                               0]:]].min()) / (dataset[dataset.columns[
+                                                                                                       number_of_node_for_each_layer[
+                                                                                                           0]:]].max() -
+                                                                                               dataset[dataset.columns[
+                                                                                                       number_of_node_for_each_layer[
+                                                                                                           0]:]].min())
+    dataset[dataset.columns[:number_of_node_for_each_layer[0]]] = (dataset[dataset.columns[
+                                                                           :number_of_node_for_each_layer[0]]] -
+                                                                   dataset[dataset.columns[
+                                                                           :number_of_node_for_each_layer[0]]].mean()) / \
+                                                                  dataset[dataset.columns[
+                                                                          :number_of_node_for_each_layer[0]]].std()
     input_layer = list()
     hidden_layer = list()
     output_layer = list()
-    list_edges = list()
     intialize_input_layer_nodes(column_name, input_layer, number_of_node_for_each_layer)
     intialize_hidden_layer_nodes(hidden_layer, number_of_node_for_each_layer)
     initialize_output_layer_nodes(column_name, number_of_node_for_each_layer, output_layer)
     create_network(hidden_layer, input_layer, output_layer)
     start_training(dataset, input_layer, hidden_layer, output_layer)
+    convert_txt_to_csv_test("test.txt", "test.csv")
+    test_set = pandas.read_csv("test.csv")
+    test_set = (test_set - test_set.mean()) / test_set.std()
+    start_testing(test_set, input_layer, hidden_layer, output_layer)
+
+
+def start_testing(test_set, input_layer, hidden_layer, output_layer):
+    mse = 0
+    sum = 0
+    sum_of_mse = 0
+    for i in range(0, len(test_set)):
+        row = test_set.iloc[i]
+        counter = 0
+        for i_node in input_layer:
+            edges = i_node.from_edges  # get_edge_by_to(i_node.name, list_edges)
+            for edge in edges:
+                edge.value = row.iloc[counter]
+            counter += 1
+        for h_node in hidden_layer:
+            output = h_node.calculate_output()
+            edges = h_node.from_edges  # get_edge_by_to(h_node.name, list_edges)
+            for edge in edges:
+                edge.value = output
+        for o_node in output_layer:
+            output = o_node.calculate_output()
+            sum = sum + numpy.power((row.iloc[counter] - output), 2)
+            counter += 1
+            mse = sum / 2
+            sum_of_mse += mse
+    sum_of_mse = sum_of_mse / len(test_set)
+    print(f"mean square error {sum_of_mse}")
 
 
 def start_training(dataset, input_layer, hidden_layer, output_layer):
@@ -86,6 +131,7 @@ def start_training(dataset, input_layer, hidden_layer, output_layer):
     learning_rate = 0.05
     while True:
         sum = 0
+        sum_of_mse = 0
         for i in range(0, len(dataset)):
             row = dataset.iloc[i]
             counter = 0
@@ -103,13 +149,14 @@ def start_training(dataset, input_layer, hidden_layer, output_layer):
                 output = o_node.calculate_output()
                 sum = sum + numpy.power((row.iloc[counter] - output), 2)
                 counter += 1
-        mse = sum / 2
-        print(f"mean square error {mse}")
+                mse = sum / 2
+                sum_of_mse += mse
+        sum_of_mse = sum_of_mse / len(dataset)
+        print(f"mean square error {sum_of_mse}")
         iterations += 1
         if iterations == number_of_iterations:
             break
         for i in range(0, len(dataset)):
-
             row = dataset.iloc[i]
             counter = 0
             for i_node in input_layer:
@@ -164,7 +211,7 @@ def intialize_input_layer_nodes(column_name, input_layer, number_of_node_for_eac
         input_layer.append(Node(column_name[i]))
 
 
-def convert_txt_to_csv(txt_name, csv_name):
+def convert_txt_to_csv_training(txt_name, csv_name):
     file = open(txt_name, "r+")
     output_file = open(csv_name, "w")
     number_of_node_for_each_layer = list()
@@ -185,6 +232,18 @@ def convert_txt_to_csv(txt_name, csv_name):
     file.close()
     output_file.close()
     return number_of_node_for_each_layer
+
+
+def convert_txt_to_csv_test(txt_name, csv_name):
+    file = open(txt_name, "r+")
+    output_file = open(csv_name, "w")
+    for line in file:
+        line = line.strip()
+        values = line.split(" ")
+        new_line = get_new_line(values)
+        output_file.write(new_line + "\n")
+    file.close()
+    output_file.close()
 
 
 def get_new_line(values):
