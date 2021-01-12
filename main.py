@@ -7,25 +7,29 @@ import pandas
 class Node:
     error = 0
     name = ""
+    from_edges = None
+    to_edges = None
 
     def __init__(self, name):
         self.name = name
         self.error = 0
+        self.from_edges = list()
+        self.to_edges = list()
 
-    def calculate_output(self, list_edges):
-        edges = get_edge_by_from(self.name, list_edges)
+    def calculate_output(self):
+        edges = self.to_edges
         sum = 0
         for edge in edges:
             sum = sum + (edge.weight * edge.value)
         return sigmoid(sum)
 
-    def calculate_input_error(self, list_edges):
-        edges = get_edge_by_to(self.name, list_edges)
+    def calculate_input_error(self):
+        edges = self.from_edges
         error = edges[0].value * (1 - edges[0].value)
         my_sum = 0
         for edge in edges:
-            from_node = edge.from_node
-            my_sum = my_sum + (edge.weight * from_node.error)
+            to_node = edge.to_node
+            my_sum = my_sum + (edge.weight * to_node.error)
         self.error = error * my_sum
 
     def calculate_output_error(self, output, target):
@@ -38,7 +42,7 @@ class Edge:
     weight = 0
     value = 0
 
-    def __init__(self, to_node, from_node, weight):
+    def __init__(self, from_node, to_node, weight):
         self.from_node = from_node
         self.to_node = to_node
         self.weight = weight
@@ -63,8 +67,6 @@ def main():
     for i in range(0, number_of_node_for_each_layer[2]):
         column_name.append("O" + str(i))
     dataset = pandas.read_csv("train.csv", names=column_name)
-    print(dataset.mean())
-    # dataset = (dataset - dataset.mean()) / numpy.sqrt(numpy.power(dataset - dataset.mean(), 2) / len(dataset))
     dataset = (dataset - dataset.min()) / (dataset.max() - dataset.min())
     input_layer = list()
     hidden_layer = list()
@@ -73,11 +75,11 @@ def main():
     intialize_input_layer_nodes(column_name, input_layer, number_of_node_for_each_layer)
     intialize_hidden_layer_nodes(hidden_layer, number_of_node_for_each_layer)
     initialize_output_layer_nodes(column_name, number_of_node_for_each_layer, output_layer)
-    create_network(hidden_layer, input_layer, list_edges, output_layer)
-    start_training(dataset, input_layer, hidden_layer, output_layer, list_edges)
+    create_network(hidden_layer, input_layer, output_layer)
+    start_training(dataset, input_layer, hidden_layer, output_layer)
 
 
-def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges):
+def start_training(dataset, input_layer, hidden_layer, output_layer):
     iterations = 0
     number_of_iterations = 500
     mse = 0
@@ -88,17 +90,17 @@ def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges)
             row = dataset.iloc[i]
             counter = 0
             for i_node in input_layer:
-                edges = get_edge_by_to(i_node.name, list_edges)
+                edges = i_node.from_edges  # get_edge_by_to(i_node.name, list_edges)
                 for edge in edges:
                     edge.value = row.iloc[counter]
                 counter += 1
             for h_node in hidden_layer:
-                output = h_node.calculate_output(list_edges)
-                edges = get_edge_by_to(h_node.name, list_edges)
+                output = h_node.calculate_output()
+                edges = h_node.from_edges  # get_edge_by_to(h_node.name, list_edges)
                 for edge in edges:
                     edge.value = output
             for o_node in output_layer:
-                output = o_node.calculate_output(list_edges)
+                output = o_node.calculate_output()
                 sum = sum + numpy.power((row.iloc[counter] - output), 2)
                 counter += 1
         mse = sum / 2
@@ -107,29 +109,44 @@ def start_training(dataset, input_layer, hidden_layer, output_layer, list_edges)
         if iterations == number_of_iterations:
             break
         for i in range(0, len(dataset)):
+
             row = dataset.iloc[i]
-            counter = len(input_layer)
+            counter = 0
+            for i_node in input_layer:
+                edges = i_node.from_edges  # get_edge_by_to(i_node.name, list_edges)
+                for edge in edges:
+                    edge.value = row.iloc[counter]
+                counter += 1
+            for h_node in hidden_layer:
+                output = h_node.calculate_output()
+                edges = h_node.from_edges  # get_edge_by_to(h_node.name, list_edges)
+                for edge in edges:
+                    edge.value = output
             for o_node in output_layer:
-                output = o_node.calculate_output(list_edges)
+                output = o_node.calculate_output()
                 o_node.calculate_output_error(output, row.iloc[counter])
-                edges = get_edge_by_from(o_node.name, list_edges)
+                edges = o_node.to_edges
                 for edge in edges:
                     edge.weight = edge.weight + (learning_rate * o_node.error * edge.value)
                 counter += 1
             for h_node in hidden_layer:
-                edges = get_edge_by_from(h_node.name, list_edges)
-                h_node.calculate_input_error(list_edges)
+                edges = h_node.to_edges  # get_edge_by_from(h_node.name, list_edges)
+                h_node.calculate_input_error()
                 for edge in edges:
                     edge.weight = edge.weight + (learning_rate * h_node.error * edge.value)
 
 
-def create_network(hidden_layer, input_layer, list_edges, output_layer):
+def create_network(hidden_layer, input_layer, output_layer):
     for node in input_layer:
         for h_node in hidden_layer:
-            list_edges.append(Edge(node, h_node, random()))
+            edge = Edge(node, h_node, random())
+            node.from_edges.append(edge)
+            h_node.to_edges.append(edge)
     for h_node in hidden_layer:
         for o_node in output_layer:
-            list_edges.append(Edge(h_node, o_node, random()))
+            edge = Edge(h_node, o_node, random())
+            h_node.from_edges.append(edge)
+            o_node.to_edges.append(edge)
 
 
 def initialize_output_layer_nodes(column_name, number_of_node_for_each_layer, output_layer):
